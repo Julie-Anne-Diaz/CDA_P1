@@ -19,6 +19,48 @@ std::vector<int> registers(32,0);
 std::map<int,int> data;
 std::map<int,Instruction> instructions;
 
+std::string printSimulation(const int& cycle, const int& pc, const std::string& instruction){
+    std::string output = "--------------------\n";
+    output+= "Cycle " + std::to_string(cycle) + ":\t" + std::to_string(pc) + ' ' + instruction + '\n';
+    output+= "Registers\n";
+    output+= "x00:";
+    for (int i = 0; i < 32; i++) {
+        output += "\t" + std::to_string(registers[i]);
+
+        if ((i + 1) % 8 == 0) {
+            output += "\n";
+
+            if (i != 31) {
+                if (i < 9) {
+                    output += "x0" + std::to_string(i + 1) + ":";
+                } else {
+                    output += "x" + std::to_string(i + 1) + ":";
+                }
+            }
+        }
+    }
+    
+    output += "Data\n";
+    int count = 0;
+
+    for (auto it = data.begin(); it != data.end(); ++it) {
+        if (count % 8 == 0) {
+            if (count != 0) {
+                output += "\n";
+            }
+
+            output += std::to_string(it->first) + ":\t";
+        }
+
+        output += std::to_string(it->second) + "\t";
+        count++;
+    }
+
+    output += "\n";
+
+    return output;
+}
+
 int binaryToInt(const std::string& bits){
     unsigned long long value = 0;
 
@@ -153,5 +195,22 @@ int main(){
     my_file.close();
     disassembly_file.close();
 
+    std::ofstream simulation_file("simulation.txt");
+    if (!simulation_file.is_open()) {
+        std::cout << "Error opening write file!" << std::endl;
+        return -1;
+    }
+
+    pc=256;
+    Instruction cur = instructions[pc];
+    int cycle=1;
+
+    while (cur.type!="break"){
+        simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+        pc+=4;
+        cycle++;
+        cur = instructions[pc];
+    }
+    simulation_file.close();
     return 0;
 }
