@@ -165,36 +165,45 @@ void Execute(const Instruction& i, int& pc){
 
 
 }
+int main(int argc, char* argv[]){
+    if (argc < 2) {
+        return -1;
+    }
 
-int main(){
-    std::ifstream my_file("sample.txt");
+    std::ifstream my_file(argv[1]);
     std::ofstream disassembly_file("disassembly.txt");
 
     if (!my_file.is_open()) {
-        std::cout << "Error opening read file!" << std::endl;
+        std::cout << "Error opening read file" << std::endl;
         return -1;
     }
     if (!disassembly_file.is_open()) {
-        std::cout << "Error opening write file!" << std::endl;
+        std::cout << "Error opening write file" << std::endl;
         return -1;
     }
 
     std::string line;
     int pc= 256;
     while (std::getline(my_file, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         Instruction i;
         i.line = line;
         parseInstruction(i,line);
         instructions[pc] = i;
-        disassembly_file << line <<'\t'<< pc << ' ' << i.decodedLine << '\n';
+        disassembly_file << line <<'\t'<< pc << '\t' << i.decodedLine << '\n';
         pc+=4;
         if (i.type == "break") {
             break;
         }
     }
     while (std::getline(my_file, line)) {
+        if (!line.empty() && line.back() == '\r') {
+            line.pop_back();
+        }
         data[pc] = binaryToSigned(line);
-        disassembly_file << line <<'\t'<< pc << ' ' << data[pc] << '\n';
+        disassembly_file << line <<'\t'<< pc << '\t' << data[pc] << '\n';
         pc+=4;
     }
 
@@ -203,7 +212,7 @@ int main(){
 
     std::ofstream simulation_file("simulation.txt");
     if (!simulation_file.is_open()) {
-        std::cout << "Error opening write file!" << std::endl;
+        std::cout << "Error opening write file" << std::endl;
         return -1;
     }
 
@@ -242,6 +251,7 @@ int main(){
             else if (cur.type == "sub"){registers[cur.rd] = registers[cur.rs1] - registers[cur.rs2];}
             else if (cur.type == "and"){registers[cur.rd] = registers[cur.rs1] & registers[cur.rs2];}
             else if (cur.type == "or"){registers[cur.rd] = registers[cur.rs1] | registers[cur.rs2];}
+            registers[0] = 0;
             simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
             pc+=4;
             break;
@@ -252,12 +262,14 @@ int main(){
             else if (cur.type == "slli"){registers[cur.rd] = registers[cur.rs1] << cur.imm;}
             else if (cur.type == "srai"){registers[cur.rd] = registers[cur.rs1] >> cur.imm;}
             else if (cur.type == "lw"){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
+            registers[0] = 0;
             simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
             pc+=4;
             break;
         case 4:
             if (cur.type == "jal"){
                 registers[cur.rd]=pc+4;
+                registers[0] = 0;
                 simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
                 pc += (cur.imm << 1);
             }
