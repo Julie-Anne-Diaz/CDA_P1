@@ -21,7 +21,7 @@ std::map<int,Instruction> instructions;
 
 std::string printSimulation(const int& cycle, const int& pc, const std::string& instruction){
     std::string output = "--------------------\n";
-    output+= "Cycle " + std::to_string(cycle) + ":\t" + std::to_string(pc) + ' ' + instruction + '\n';
+    output+= "Cycle " + std::to_string(cycle) + ":\t" + std::to_string(pc) + '\t' + instruction + '\n';
     output+= "Registers\n";
     output+= "x00:";
     for (int i = 0; i < 32; i++) {
@@ -97,7 +97,7 @@ void parseType1(Instruction& i,std::string line){
     i.rs2 = binaryToInt(line.substr(7, 5));
     i.rs1 = binaryToInt(line.substr(12, 5));
     i.imm = binaryToSigned(line.substr(0, 7) + line.substr(20, 5));
-    if(i.type == "sw"){i.decodedLine = "sw x" + std::to_string(i.rs2) + ", " + std::to_string(i.imm) + "(x" + std::to_string(i.rs1) + ")";}
+    if(i.type == "sw"){i.decodedLine = "sw x" + std::to_string(i.rs1) + ", " + std::to_string(i.imm) + "(x" + std::to_string(i.rs2) + ")";}
     else{i.decodedLine = i.type + " x" + std::to_string(i.rs1) + ", x" + std::to_string(i.rs2) + ", #" + std::to_string(i.imm);}
 }
 void parseType2(Instruction& i,std::string line){
@@ -160,6 +160,12 @@ void parseInstruction(Instruction& i,std::string line){
     }
 }
 
+
+void Execute(const Instruction& i, int& pc){
+
+
+}
+
 int main(){
     std::ifstream my_file("sample.txt");
     std::ofstream disassembly_file("disassembly.txt");
@@ -206,11 +212,61 @@ int main(){
     int cycle=1;
 
     while (cur.type!="break"){
-        simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-        pc+=4;
+        switch (cur.category)
+        {
+        case 1:
+            if (cur.type == "beq" && registers[cur.rs1] == registers[cur.rs2]){
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc+=cur.imm<<1;
+            }
+            else if (cur.type == "bne" && registers[cur.rs1] != registers[cur.rs2]){
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc+=cur.imm<<1;
+            }
+            else if (cur.type == "blt" && registers[cur.rs1] < registers[cur.rs2]){
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc+=cur.imm<<1;
+            }
+            else if (cur.type == "sw"){
+                data[registers[cur.rs2]+cur.imm] = registers[cur.rs1];
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc+=4;
+            }
+            else{
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc+=4;
+            }
+            break;
+        case 2:
+            if (cur.type == "add"){registers[cur.rd] = registers[cur.rs1] + registers[cur.rs2];}
+            else if (cur.type == "sub"){registers[cur.rd] = registers[cur.rs1] - registers[cur.rs2];}
+            else if (cur.type == "and"){registers[cur.rd] = registers[cur.rs1] & registers[cur.rs2];}
+            else if (cur.type == "or"){registers[cur.rd] = registers[cur.rs1] | registers[cur.rs2];}
+            simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+            pc+=4;
+            break;
+        case 3:
+            if (cur.type == "addi"){registers[cur.rd] = registers[cur.rs1] + cur.imm;}
+            else if (cur.type == "andi"){registers[cur.rd] = registers[cur.rs1] & cur.imm;}
+            else if (cur.type == "ori"){registers[cur.rd] = registers[cur.rs1] | cur.imm;}
+            else if (cur.type == "slli"){registers[cur.rd] = registers[cur.rs1] << cur.imm;}
+            else if (cur.type == "srai"){registers[cur.rd] = registers[cur.rs1] >> cur.imm;}
+            else if (cur.type == "lw"){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
+            simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+            pc+=4;
+            break;
+        case 4:
+            if (cur.type == "jal"){
+                registers[cur.rd]=pc+4;
+                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+                pc += (cur.imm << 1);
+            }
+            break;
+        }
         cycle++;
         cur = instructions[pc];
     }
+    simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
     simulation_file.close();
     return 0;
 }
