@@ -160,11 +160,6 @@ void parseInstruction(Instruction& i,std::string line){
     }
 }
 
-
-void Execute(const Instruction& i, int& pc){
-
-
-}
 int main(int argc, char* argv[]){
     if (argc < 2) {
         return -1;
@@ -174,11 +169,9 @@ int main(int argc, char* argv[]){
     std::ofstream disassembly_file("disassembly.txt");
 
     if (!my_file.is_open()) {
-        std::cout << "Error opening read file" << std::endl;
         return -1;
     }
     if (!disassembly_file.is_open()) {
-        std::cout << "Error opening write file" << std::endl;
         return -1;
     }
 
