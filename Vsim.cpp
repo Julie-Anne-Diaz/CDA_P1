@@ -205,7 +205,6 @@ int main(int argc, char* argv[]){
 
     std::ofstream simulation_file("simulation.txt");
     if (!simulation_file.is_open()) {
-        std::cout << "Error opening write file" << std::endl;
         return -1;
     }
 
@@ -254,7 +253,11 @@ int main(int argc, char* argv[]){
             else if (cur.type == "ori"){registers[cur.rd] = registers[cur.rs1] | cur.imm;}
             else if (cur.type == "slli"){registers[cur.rd] = registers[cur.rs1] << cur.imm;}
             else if (cur.type == "srai"){registers[cur.rd] = registers[cur.rs1] >> cur.imm;}
-            else if (cur.type == "lw"){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
+            else if (cur.type == "lw"){
+                //make sure val exists
+                if (data.count(registers[cur.rs1]+cur.imm)){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
+                else{registers[cur.rd]=0;}
+            }
             registers[0] = 0;
             simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
             pc+=4;
