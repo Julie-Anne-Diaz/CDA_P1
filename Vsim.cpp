@@ -1,3 +1,5 @@
+//On my honor, I have neither given nor received any unauthorized aid on this assignment.
+
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -18,6 +20,12 @@ struct Instruction{
 std::vector<int> registers(32,0);
 std::map<int,int> data;
 std::map<int,Instruction> instructions;
+std::vector<Instruction> preIssue; //4 max
+std::vector<Instruction> preALU1; //2 max
+std::vector<Instruction> preALU2; //2 max
+std::vector<Instruction> preMEM; //1 max
+std::vector<Instruction> postALU2; //1 max
+std::vector<Instruction> postMEM; //1 max   
 
 std::string printSimulation(const int& cycle, const int& pc, const std::string& instruction){
     std::string output = "--------------------\n";
@@ -160,6 +168,55 @@ void parseInstruction(Instruction& i,std::string line){
     }
 }
 
+int Execute(const Instruction& cur, const int& pc){
+    switch (cur.category)
+    {
+    case 1:
+        if (cur.type == "beq" && registers[cur.rs1] == registers[cur.rs2]){
+            return pc+(cur.imm<<1);
+        }
+        else if (cur.type == "bne" && registers[cur.rs1] != registers[cur.rs2]){
+            return pc+(cur.imm<<1);
+        }
+        else if (cur.type == "blt" && registers[cur.rs1] < registers[cur.rs2]){
+            return pc+(cur.imm<<1);
+        }
+        else if (cur.type == "sw"){
+            data[registers[cur.rs2]+cur.imm] = registers[cur.rs1];
+            return pc+4;
+        }
+        else{
+            return pc+4;
+        }
+    case 2:
+        if (cur.type == "add"){registers[cur.rd] = registers[cur.rs1] + registers[cur.rs2];}
+        else if (cur.type == "sub"){registers[cur.rd] = registers[cur.rs1] - registers[cur.rs2];}
+        else if (cur.type == "and"){registers[cur.rd] = registers[cur.rs1] & registers[cur.rs2];}
+        else if (cur.type == "or"){registers[cur.rd] = registers[cur.rs1] | registers[cur.rs2];}
+        registers[0] = 0;
+        return pc+4;
+    case 3:
+        if (cur.type == "addi"){registers[cur.rd] = registers[cur.rs1] + cur.imm;}
+        else if (cur.type == "andi"){registers[cur.rd] = registers[cur.rs1] & cur.imm;}
+        else if (cur.type == "ori"){registers[cur.rd] = registers[cur.rs1] | cur.imm;}
+        else if (cur.type == "slli"){registers[cur.rd] = registers[cur.rs1] << cur.imm;}
+        else if (cur.type == "srai"){registers[cur.rd] = registers[cur.rs1] >> cur.imm;}
+        else if (cur.type == "lw"){
+            //make sure val exists
+            if (data.count(registers[cur.rs1]+cur.imm)){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
+            else{registers[cur.rd]=0;}
+        }
+        registers[0] = 0;
+        return pc+4;
+    case 4:
+        if (cur.type == "jal"){
+            registers[cur.rd]=pc+4;
+            registers[0] = 0;
+            return pc+(cur.imm << 1);
+        }
+    }
+    return false;
+}
 int main(int argc, char* argv[]){
     if (argc < 2) {
         return -1;
@@ -213,65 +270,14 @@ int main(int argc, char* argv[]){
     int cycle=1;
 
     while (cur.type!="break"){
-        switch (cur.category)
-        {
-        case 1:
-            if (cur.type == "beq" && registers[cur.rs1] == registers[cur.rs2]){
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc+=cur.imm<<1;
-            }
-            else if (cur.type == "bne" && registers[cur.rs1] != registers[cur.rs2]){
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc+=cur.imm<<1;
-            }
-            else if (cur.type == "blt" && registers[cur.rs1] < registers[cur.rs2]){
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc+=cur.imm<<1;
-            }
-            else if (cur.type == "sw"){
-                data[registers[cur.rs2]+cur.imm] = registers[cur.rs1];
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc+=4;
-            }
-            else{
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc+=4;
-            }
-            break;
-        case 2:
-            if (cur.type == "add"){registers[cur.rd] = registers[cur.rs1] + registers[cur.rs2];}
-            else if (cur.type == "sub"){registers[cur.rd] = registers[cur.rs1] - registers[cur.rs2];}
-            else if (cur.type == "and"){registers[cur.rd] = registers[cur.rs1] & registers[cur.rs2];}
-            else if (cur.type == "or"){registers[cur.rd] = registers[cur.rs1] | registers[cur.rs2];}
-            registers[0] = 0;
-            simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-            pc+=4;
-            break;
-        case 3:
-            if (cur.type == "addi"){registers[cur.rd] = registers[cur.rs1] + cur.imm;}
-            else if (cur.type == "andi"){registers[cur.rd] = registers[cur.rs1] & cur.imm;}
-            else if (cur.type == "ori"){registers[cur.rd] = registers[cur.rs1] | cur.imm;}
-            else if (cur.type == "slli"){registers[cur.rd] = registers[cur.rs1] << cur.imm;}
-            else if (cur.type == "srai"){registers[cur.rd] = registers[cur.rs1] >> cur.imm;}
-            else if (cur.type == "lw"){
-                //make sure val exists
-                if (data.count(registers[cur.rs1]+cur.imm)){registers[cur.rd]=data[registers[cur.rs1]+cur.imm];}
-                else{registers[cur.rd]=0;}
-            }
-            registers[0] = 0;
-            simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-            pc+=4;
-            break;
-        case 4:
-            if (cur.type == "jal"){
-                registers[cur.rd]=pc+4;
-                registers[0] = 0;
-                simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
-                pc += (cur.imm << 1);
-            }
-            break;
-        }
+        int next = Execute(cur, pc);
+        simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
+        pc = next;
         cycle++;
+        if (pc == 0) {
+            std::cout<<"invalid address"<<std::endl;
+            return 0;
+        }
         cur = instructions[pc];
     }
     simulation_file<<printSimulation(cycle, pc, cur.decodedLine);
