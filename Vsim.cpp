@@ -16,7 +16,6 @@ struct Instruction{
     int rs1 = -1;
     int rs2 = -1;
     int imm = 0;
-
     int address = 0;
     int value1 = 0;
     int value2 = 0;
@@ -34,51 +33,115 @@ std::vector<Instruction> postALU2; //1 max
 std::vector<Instruction> postMEM; //1 max
 std::vector<Instruction> executed; //1 max
 std::vector<Instruction> waiting; //1 max   
-std::vector<Instruction> writeback; //1 max
 std::map<int,int> inUse;
 
 
-
-std::string printSimulation(const int& cycle, const int& pc, const std::string& instruction){
-    std::string output = "--------------------\n";
-    output+= "Cycle " + std::to_string(cycle) + ":\t" + std::to_string(pc) + '\t' + instruction + '\n';
-    output+="\n\nIF Unit:\n\t";
-    output+= "Registers\n";
-    output+= "x00:";
-    for (int i = 0; i < 32; i++) {
-        output += "\t" + std::to_string(registers[i]);
-
-        if ((i + 1) % 8 == 0) {
-            output += "\n";
-
-            if (i != 31) {
-                if (i < 9) {
-                    output += "x0" + std::to_string(i + 1) + ":";
-                } else {
-                    output += "x" + std::to_string(i + 1) + ":";
-                }
-            }
-        }
+std::string queueEntry(const std::vector<Instruction>& queue, int index){
+    if (index >= (int)queue.size()){
+        return "";
     }
-    
-    output += "Data\n";
-    int count = 0;
 
-    for (auto it = data.begin(); it != data.end(); ++it) {
-        if (count % 8 == 0) {
-            if (count != 0) {
-                output += "\n";
-            }
+    return "[" + queue[index].decodedLine + "]";
+}
 
-            output += std::to_string(it->first) + ":\t";
-        }
 
-        output += std::to_string(it->second) + "\t";
-        count++;
+std::string printSimulation(const int& cycle){
+    std::string output = "--------------------\n";
+    output += "Cycle " + std::to_string(cycle) + ":\n\n";
+
+    // IF unit
+    output += "IF Unit:\n";
+    output += "\tWaiting: ";
+
+    if (!waiting.empty()){
+        output += "[" + waiting[0].decodedLine + "]";
+    }
+
+    output += "\n";
+    output += "\tExecuted: ";
+
+    if (!executed.empty()){
+        output += "[" + executed[0].decodedLine + "]";
     }
 
     output += "\n";
 
+    // pre issue
+    output += "Pre-Issue Queue:\n";
+
+    for (int i = 0; i < 4; i++){
+        output += "\tEntry " + std::to_string(i) + ": ";
+        output += queueEntry(preIssue, i);
+        output += "\n";
+    }
+
+
+    // pre alu1
+    output += "Pre-ALU1 Queue:\n";
+
+    for (int i = 0; i < 2; i++){
+        output += "\tEntry " + std::to_string(i) + ": ";
+        output += queueEntry(preALU1, i);
+        output += "\n";
+    }
+
+    // pre mem
+    output += "Pre-MEM Queue: ";
+    output += queueEntry(preMEM, 0);
+    output += "\n";
+
+    //post mem
+    output += "Post-MEM Queue: ";
+    output += queueEntry(postMEM, 0);
+    output += "\n";
+
+    //pre alu2
+    output += "Pre-ALU2 Queue:\n";
+
+    for (int i = 0; i < 2; i++){
+        output += "\tEntry " + std::to_string(i) + ": ";
+        output += queueEntry(preALU2, i);
+        output += "\n";
+    }
+
+    //post alu2
+    output += "Post-ALU2 Queue: ";
+    output += queueEntry(postALU2, 0);
+    output += "\n\n";
+
+    //regs
+    output += "Registers\n";
+
+    for (int row = 0; row < 4; row++){
+        int start = row * 8;
+        if (start < 10){
+            output += "x0" + std::to_string(start) + ":";
+        }
+        else{
+            output += "x" + std::to_string(start) + ":";
+        }
+        for (int i = 0; i < 8; i++){
+
+            output += "\t" + std::to_string(registers[start + i]);
+        }
+        output += "\n";
+    }
+
+    // mem
+    output += "\nData\n";
+    int count = 0;
+
+    for (auto it = data.begin(); it != data.end(); ++it){
+        if (count % 8 == 0){
+            if (count != 0){
+                output += "\n";
+            }
+            output += std::to_string(it->first) + ":";
+        }
+        output += "\t" + std::to_string(it->second);
+        count++;
+    }
+    output += "\n";
     return output;
 }
 
@@ -91,6 +154,7 @@ int binaryToInt(const std::string& bits){
 
     return static_cast<int>(value);
 }
+
 int binaryToSigned(const std::string& bits){
     long long value = 0;
 
@@ -114,72 +178,130 @@ int parseCategory(std::string line){
     else return -1;
 }
 
-void parseType1(Instruction& i,std::string line){
-    i.rs2 = binaryToInt(line.substr(7, 5));
-    i.rs1 = binaryToInt(line.substr(12, 5));
-    i.imm = binaryToSigned(line.substr(0, 7) + line.substr(20, 5));
-    if(i.type == "sw"){i.decodedLine = "sw x" + std::to_string(i.rs1) + ", " + std::to_string(i.imm) + "(x" + std::to_string(i.rs2) + ")";}
-    else{i.decodedLine = i.type + " x" + std::to_string(i.rs1) + ", x" + std::to_string(i.rs2) + ", #" + std::to_string(i.imm);}
-}
-void parseType2(Instruction& i,std::string line){
-    i.rs2 = binaryToInt(line.substr(7, 5));
-    i.rs1 = binaryToInt(line.substr(12, 5));
-    i.rd = binaryToInt(line.substr(20, 5));
-    i.decodedLine = i.type + " x" + std::to_string(i.rd) + ", x" + std::to_string(i.rs1) + ", x" + std::to_string(i.rs2);
-}
-void parseType3(Instruction& i,std::string line){
-    i.rs1 = binaryToInt(line.substr(12, 5));
-    i.rd = binaryToInt(line.substr(20, 5));
-    if(i.type == "slli" || i.type == "srai"){i.imm = binaryToInt(line.substr(7, 5));}
-    else{i.imm = binaryToSigned(line.substr(0, 12));}
-    if(i.type == "lw"){i.decodedLine ="lw x" + std::to_string(i.rd) + ", " + std::to_string(i.imm) + "(x" + std::to_string(i.rs1) + ")";}
-    else{i.decodedLine = i.type + " x" + std::to_string(i.rd) + ", x" + std::to_string(i.rs1) + ", #" + std::to_string(i.imm);}
-}
-void parseType4(Instruction& i,std::string line){
-    if (i.type == "jal"){
+
+
+void parseInstruction(Instruction& i, std::string line){
+    std::string opcode = line.substr(line.length() - 7, 5);
+    i.category = parseCategory(line);
+
+    switch (i.category){
+    case 1:
+        i.rs2 = binaryToInt(line.substr(7, 5));
+        i.rs1 = binaryToInt(line.substr(12, 5));
+        i.imm = binaryToSigned(line.substr(0, 7) + line.substr(20, 5));
+
+        if (opcode == "00000"){
+            i.type = "beq";
+        }
+        else if (opcode == "00001"){
+            i.type = "bne";
+        }
+        else if (opcode == "00010"){
+            i.type = "blt";
+        }
+        else if (opcode == "00011"){
+            i.type = "sw";
+        }
+
+        if (i.type == "sw"){
+            i.decodedLine =
+                "sw x" + std::to_string(i.rs1) +
+                ", " + std::to_string(i.imm) +
+                "(x" + std::to_string(i.rs2) + ")";
+        }
+        else{
+            i.decodedLine =
+                i.type +
+                " x" + std::to_string(i.rs1) +
+                ", x" + std::to_string(i.rs2) +
+                ", #" + std::to_string(i.imm);
+        }
+
+        break;
+
+    case 2:
+        i.rs2 = binaryToInt(line.substr(7, 5));
+        i.rs1 = binaryToInt(line.substr(12, 5));
         i.rd = binaryToInt(line.substr(20, 5));
-        i.imm = binaryToSigned(line.substr(0, 20));
-        i.decodedLine = i.type + " x" + std::to_string(i.rd) + ", #" + std::to_string(i.imm);
-        return;
+
+        if (opcode == "00000"){
+            i.type = "add";
+        }
+        else if (opcode == "00001"){
+            i.type = "sub";
+        }
+        else if (opcode == "00010"){
+            i.type = "and";
+        }
+        else if (opcode == "00011"){
+            i.type = "or";
+        }
+
+        i.decodedLine = i.type + " x" + std::to_string(i.rd) + ", x" + std::to_string(i.rs1) + ", x" + std::to_string(i.rs2);
+        break;
+
+    case 3:
+        i.rs1 = binaryToInt(line.substr(12, 5));
+        i.rd = binaryToInt(line.substr(20, 5));
+
+        if (opcode == "00000"){
+            i.type = "addi";
+        }
+        else if (opcode == "00001"){
+            i.type = "andi";
+        }
+        else if (opcode == "00010"){
+            i.type = "ori";
+        }
+        else if (opcode == "00011"){
+            i.type = "slli";
+        }
+        else if (opcode == "00100"){
+            i.type = "srai";
+        }
+        else if (opcode == "00101"){
+            i.type = "lw";
+        }
+
+        if (i.type == "slli" || i.type == "srai"){
+            i.imm = binaryToInt(line.substr(7, 5));
+        }
+        else{
+            i.imm = binaryToSigned(line.substr(0, 12));
+        }
+
+        if (i.type == "lw"){
+            i.decodedLine =
+                "lw x" + std::to_string(i.rd) +
+                ", " + std::to_string(i.imm) +
+                "(x" + std::to_string(i.rs1) + ")";
+        }
+        else{
+            i.decodedLine =
+                i.type +
+                " x" + std::to_string(i.rd) +
+                ", x" + std::to_string(i.rs1) +
+                ", #" + std::to_string(i.imm);
+        }
+
+        break;
+
+    case 4:
+        if (opcode == "00000"){
+            i.type = "jal";
+            i.rd = binaryToInt(line.substr(20, 5));
+            i.imm = binaryToSigned(line.substr(0, 20));
+            i.decodedLine = "jal x" + std::to_string(i.rd) + ", #" + std::to_string(i.imm);
+        }
+        else if (opcode == "11111"){
+            i.type = "break";
+            i.decodedLine = "break";
+        }
+
+        break;
     }
-    i.decodedLine = i.type;
 }
 
-void parseInstruction(Instruction& i,std::string line){
-    line=line.substr(line.length()-7,5);
-    i.category=parseCategory(i.line);
-    switch (i.category)
-    {
-    case 1:
-        if (line=="00000")i.type= "beq";
-        else if (line=="00001")i.type= "bne";
-        else if (line=="00010")i.type= "blt";
-        else if (line=="00011")i.type= "sw";
-        parseType1(i,i.line);
-        break;
-    case 2:
-        if (line=="00000")i.type= "add";
-        else if (line=="00001")i.type= "sub";
-        else if (line=="00010")i.type= "and";
-        else if (line=="00011")i.type= "or";
-        parseType2(i,i.line);
-        break;
-    case 3:
-        if (line=="00000")i.type= "addi";
-        else if (line=="00001")i.type= "andi";
-        else if (line=="00010")i.type= "ori";
-        else if (line=="00011")i.type= "slli";
-        else if (line=="00100")i.type= "srai";
-        else if (line=="00101")i.type= "lw";
-        parseType3(i,i.line);
-        break;
-    case 4:
-        if (line=="00000")i.type= "jal";
-        else if (line=="11111")i.type= "break";
-        parseType4(i,i.line);
-        break;
-    }
-}
 bool isMemory(const Instruction& i){
     return i.type == "lw" || i.type == "sw";
 }
@@ -217,14 +339,15 @@ bool readsRegister(const Instruction& i, int reg){
     return false;
 }
 
+//wb
 void Execute(const Instruction& cur){
-
     if (writesRegister(cur)){
         registers[cur.rd] = cur.result;
     }
 
     registers[0] = 0;
 }
+
 void rebuildInUse(){
     inUse.clear();
     for (const Instruction& i : preALU1){
@@ -253,6 +376,7 @@ void rebuildInUse(){
         }
     }
 }
+
 int executeBranch(const Instruction& i, const std::vector<int>& oldRegisters){
     if (i.type == "beq"){
 
@@ -274,6 +398,7 @@ int executeBranch(const Instruction& i, const std::vector<int>& oldRegisters){
     }
     return i.address + 4;
 }
+
 bool branchReady(const Instruction& branch, const std::vector<Instruction>& oldPreIssue){
     //check instructions already active in the pipeline
     for (int reg = 1; reg < 32; reg++){
@@ -292,6 +417,7 @@ bool branchReady(const Instruction& branch, const std::vector<Instruction>& oldP
     }
     return true;
 }
+
 //save values at issue to prevent WAR
 void captureValues(Instruction& i, const std::vector<int>& oldRegisters){
     if (i.type == "add" || i.type == "sub" || i.type == "and" || i.type == "or"){
@@ -309,6 +435,7 @@ void captureValues(Instruction& i, const std::vector<int>& oldRegisters){
         i.value2 = oldRegisters[i.rs1];
     }
 }
+
 void executeALU(Instruction& i){
     if (i.type == "lw" || i.type == "sw"){
         i.result = i.value1 + i.imm;
@@ -341,6 +468,7 @@ void executeALU(Instruction& i){
         i.result = i.value1 >> i.imm;
     }
 }
+
 bool RAW(const Instruction& younger, const Instruction& older){
     if (!writesRegister(older)){
         return false;
@@ -661,6 +789,7 @@ void Pipeline(){
             }
         }
         registers[0] = 0;
+        simulation_file << printSimulation(cycle);
         cycle++;
     }
 
