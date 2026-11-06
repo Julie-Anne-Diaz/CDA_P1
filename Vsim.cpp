@@ -626,19 +626,9 @@ void Pipeline(){
             //check earlier isntructions in pre issue
             for (int j = 0; j < i; j++){
                 const Instruction& older = oldPreIssue[j];
-                // RAW 
-                if (RAW(candidate, older)){
-
+                if (RAW(candidate, older) || WAW(candidate, older) || WAR(candidate, older)){
                     hazard = true;
                     break;
-                }
-                // WAW and WAR if instruc didnt issue this cycle
-                if (issuedIndexes.count(j) == 0){
-                    if (WAW(candidate, older) ||
-                        WAR(candidate, older)){
-                        hazard = true;
-                        break;
-                    }
                 }
             }
 
