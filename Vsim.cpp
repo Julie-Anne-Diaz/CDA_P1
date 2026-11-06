@@ -381,19 +381,19 @@ int executeBranch(const Instruction& i, const std::vector<int>& oldRegisters){
     if (i.type == "beq"){
 
         if (oldRegisters[i.rs1] == oldRegisters[i.rs2]){
-            return i.address + (i.imm << 1);
+            return i.address + (i.imm * 2);
         }
     }
     else if (i.type == "bne"){
 
         if (oldRegisters[i.rs1] != oldRegisters[i.rs2]){
-            return i.address + (i.imm << 1);
+            return i.address + (i.imm * 2);
         }
     }
     else if (i.type == "blt"){
 
         if (oldRegisters[i.rs1] < oldRegisters[i.rs2]){
-            return i.address + (i.imm << 1);
+            return i.address + (i.imm * 2);
         }
     }
     return i.address + 4;
@@ -750,7 +750,7 @@ void Pipeline(){
                     }
 
                     registers[0] = 0;
-                    pc = next.address + (next.imm << 1);
+                    pc = next.address + (next.imm * 2);
                     break;
                 }
 
